@@ -1,41 +1,39 @@
 import babel from '@rollup/plugin-babel';
 import nodeResolve from '@rollup/plugin-node-resolve';
 import { terser } from 'rollup-plugin-terser';
+import pkg from './package.json';
 
 const extensions = ['.js', '.jsx', '.ts', '.tsx'];
 
-const external = [
-  'solid-js',
-  'solid-js/jsx-runtime',
-  'file-selector'
+const deps = [
+  ...Object.keys(pkg.dependencies || {}),
+  ...Object.keys(pkg.peerDependencies || {}),
 ];
 
+const external = id =>
+  deps.some(dep => id === dep || id.startsWith(`${dep}/`))
+  || /node_modules/.test(id);
 
 export default {
   input: 'src/index.tsx',
-
-  output: [
-    {
-      format: 'es',
-      sourcemap: true,
-      preserveModules: true, 
-      dir: 'dist'
-    }
-  ],
-
-  external: (id) => external.some(dep => id.startsWith(dep)),
-
+  external,
+  output: {
+    format: 'es',
+    sourcemap: true,
+    preserveModules: true,
+    dir: 'dist',
+  },
   plugins: [
     nodeResolve({
       extensions,
+      preferBuiltins: false,
+      resolveOnly: [ /^src\// ],
     }),
-
     babel({
       babelHelpers: 'bundled',
-      include: ['src/**/*'],
       extensions,
+      include: ['src/**/*'],
     }),
-
     terser(),
   ],
 };

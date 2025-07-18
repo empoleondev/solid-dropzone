@@ -19,8 +19,5 @@ See the storybooks for examples
 yarn storybook
 ```
 
-## Release
-Matches release: v14.3.8
-
 ## License
 MIT

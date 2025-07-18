@@ -1,6 +1,7 @@
 {
   "name": "@empoleon/solid-dropzone",
   "version": "1.0.1",
+  "type": "module",
   "description": "Simple HTML5 drag-drop zone with SolidJS",
   "main": "dist/index.js",
   "module": "./dist/index.js",
@@ -100,9 +101,6 @@
   "author": "Param Aggarwal",
   "forkBy": "Paul M",
   "license": "MIT",
-  "resolutions": {
-    "file-selector": "0.4.0"
-  },
   "dependencies": {
     "attr-accept": "^2.2.4"
   },
@@ -157,6 +155,7 @@
     "jest-environment-jsdom": "^27.4.7",
     "lint-staged": "^12.3.2",
     "markdownlint-cli": "^0.30.0",
+    "new-github-release-url": "^2.0.0",
     "pinst": "^2.1.6",
     "prettier": "^2.5.1",
     "rimraf": "^3.0.2",
