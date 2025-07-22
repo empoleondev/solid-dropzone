@@ -36,4 +36,11 @@ export default {
     }),
     terser(),
   ],
+  onwarn(warning, warn) {
+    // Skip JSX import warnings for type files
+    if (warning.code === 'UNUSED_EXTERNAL_IMPORT' && warning.names?.includes('JSX')) {
+      return;
+    }
+    warn(warning);
+  }
 };

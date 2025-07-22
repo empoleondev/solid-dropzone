@@ -1,4 +1,4 @@
-import { FileError, FileRejection, Accept } from '../types'; // Adjust import path as needed
+import { FileError, Accept } from '../types';
 
 export const ErrorCode = {
   FileInvalidType: 'file-invalid-type',

@@ -1,5 +1,12 @@
-import { Accessor } from "solid-js";
-import { JSX } from "solid-js/jsx-runtime";
+import { Accessor, JSX } from "solid-js";
+
+declare module 'solid-js' {
+  namespace JSX {
+    interface HTMLAttributes<T> {
+      role?: string;
+    }
+  }
+}
 
 export enum ErrorCode {
   FileInvalidType = "file-invalid-type",
@@ -30,7 +37,7 @@ export interface DropzoneRef {
 
 export interface DropzoneRootProps {
   refKey?: string;
-  role?: JSX.HTMLAttributes<HTMLElement>['role'];
+  role?: string;
   onKeyDown?: (event: KeyboardEvent) => void;
   onFocus?: (event: FocusEvent) => void;
   onBlur?: (event: FocusEvent) => void;

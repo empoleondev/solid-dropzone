@@ -1,8 +1,7 @@
 {
-  "include": ["./src"],
+  "include": ["./src", "./test"],
   "compilerOptions": {
     "baseUrl": ".",
-    "rootDir": "src",
     "declaration": true,
     "declarationDir": "./dist/types",
     "types": ["node", "jest", "@testing-library/jest-dom"],

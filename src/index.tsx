@@ -5,7 +5,6 @@ import {
   onCleanup,
   splitProps,
   mergeProps,
-  ParentComponent,
   Component,
 } from "solid-js";
 import {
@@ -109,6 +108,36 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
   // Refs
   let rootRef: HTMLElement | undefined;
   let inputRef: HTMLInputElement | undefined;
+
+  createEffect(() => {
+    if (!rootRef) return;
+
+    // only when neither disabled nor noKeyboard
+    if (!local.disabled && !local.noKeyboard) {
+      rootRef.setAttribute("tabindex", "0");
+    } else {
+      rootRef.removeAttribute("tabindex");
+    }
+  });
+
+  createEffect(() => {
+    if (!inputRef) return;
+
+    // sync accept attribute (so getAttribute("accept") updates)
+    const a = acceptAttr();
+    if (a) {
+      inputRef.setAttribute("accept", a);
+    } else {
+      inputRef.removeAttribute("accept");
+    }
+
+    // sync multiple boolean attribute
+    if (local.multiple) {
+      inputRef.setAttribute("multiple", "");
+    } else {
+      inputRef.removeAttribute("multiple");
+    }
+  });
   
   let openCalledInThisTick = false;
 
@@ -193,6 +222,27 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
 
     dragTargets = [...dragTargets, event.target!];
 
+    local.getFilesFromEvent(event);
+
+    const dt = event.dataTransfer;
+    if (dt?.files?.length) {
+      const syncFiles = Array.from(dt.files) as FileWithPath[];
+      const accept = allFilesAccepted({
+        files: syncFiles as File[],
+        accept: acceptAttr(),
+        minSize: local.minSize,
+        maxSize: local.maxSize,
+        multiple: local.multiple,
+        maxFiles: local.maxFiles,
+        validator: local.validator,
+      });
+      setIsDragActive(true);
+      setIsDragAccept(accept);
+      setIsDragReject(!accept);
+      local.onDragEnter?.(event);
+      return;
+  }
+
     if (isEvtWithFiles(event)) {
       Promise.resolve(local.getFilesFromEvent(event))
         .then((files) => {
@@ -247,6 +297,9 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
   };
 
   const onDragLeaveCb = (event: DragEvent) => {
+    if (!isEvtWithFiles(event)) return;
+    if (!dragTargets.includes(event.target!)) return;    
+    
     event.preventDefault();
     stopPropagation(event);
 
@@ -325,6 +378,20 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
   };
 
   const onDropCb = (event: DragEvent | Event) => {
+    const target = (event.target as HTMLInputElement);
+    if (!('dataTransfer' in event) && target.files?.length) {
+      event.preventDefault();
+      stopPropagation(event);
+      dragTargets = [];
+      const syncFiles = Array.from(target.files) as FileWithPath[];
+      setFiles(syncFiles, event);
+      // reset drag state
+      setIsDragActive(false);
+      setIsDragAccept(false);
+      setIsDragReject(false);
+      return;
+    }
+
     event.preventDefault();
     // Persist here because we need the event later after getFilesFromEvent() is done
     stopPropagation(event);
@@ -332,6 +399,12 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
     dragTargets = [];
 
     if (isEvtWithFiles(event)) {
+      const dt = (event as DragEvent).dataTransfer;
+      if (dt && dt.files?.length) {
+        const syncFiles = Array.from(dt.files) as FileWithPath[];
+        setFiles(syncFiles, event);
+      }
+
       Promise.resolve(local.getFilesFromEvent(event))
         .then((files) => {
           if (isPropagationStopped(event) && !local.noDragEventsBubbling) {
@@ -404,6 +477,10 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
 
   // Cb to open the file dialog when SPACE/ENTER occurs on the dropzone
   const onKeyDownCb = (event: KeyboardEvent) => {
+    if (event.cancelBubble) {
+      return;
+    }
+
     if (!rootRef || !rootRef.isEqualNode(event.target as Node)) {
       return;
     }
@@ -420,16 +497,27 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
   };
 
   // Update focus state for the dropzone
-  const onFocusCb = () => {
+  const onFocusCb = (event: FocusEvent) => {
+    // Native stopPropagation() sets event.cancelBubble = true
+    if (event.cancelBubble) {
+      return;
+    }
     setIsFocused(true);
   };
 
-  const onBlurCb = () => {
+  const onBlurCb = (event: FocusEvent) => {
+    if (event.cancelBubble) {
+      return;
+    }
+
     setIsFocused(false);
   };
 
   // Cb to open the file dialog when click occurs on the dropzone
-  const onClickCb = () => {
+  const onClickCb = (event: MouseEvent) => {
+    if (event.cancelBubble) {
+      return;
+    }
     if (local.noClick || openCalledInThisTick) {
       return;
     }
@@ -438,9 +526,11 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
     // to ensure React can handle state changes
     // See: https://github.com/react-dropzone/react-dropzone/issues/450
     if (isIeOrEdge()) {
-      setTimeout(openFileDialog, 0);
+      if (inputRef) {
+        inputRef.click();
+      }
     } else {
-      openFileDialog();
+      setTimeout(openFileDialog, 0);
     }
   };
 
@@ -453,12 +543,26 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
   };
 
   const composeDragHandler = <T extends (...args: any[]) => any>(fn: T): T | undefined => {
-    return local.noDrag ? undefined : composeHandler(fn);
+    if (local.noDrag) return undefined;
+
+    if (local.noDragEventsBubbling && fn) {
+      return ((event: any, ...args: any[]) => {
+        event.stopPropagation();
+        return fn(event, ...args);
+      }) as T;
+    }
+
+    return composeHandler(fn);
   };
 
   const stopPropagation = (event: DragEvent | Event) => {
     if (local.noDragEventsBubbling) {
-      event.stopPropagation();
+      // Fully halt any further handlers on this element or its ancestors:
+      if (typeof (event as any).stopImmediatePropagation === 'function') {
+        (event as any).stopImmediatePropagation();
+      } else {
+        event.stopPropagation();
+      }
     }
   };
 
@@ -492,16 +596,28 @@ export function useDropzone(props: DropzoneProps = {}): DropzoneHookResult {
         composeEventHandlers(localProps.onClick, onClickCb)
       ),
       onDragEnter: composeDragHandler(
-        composeEventHandlers(localProps.onDragEnter, onDragEnterCb)
+        composeEventHandlers(
+          local.onDragEnter,                           
+          composeEventHandlers(localProps.onDragEnter, onDragEnterCb)
+        )
       ),
       onDragOver: composeDragHandler(
-        composeEventHandlers(localProps.onDragOver, onDragOverCb)
+        composeEventHandlers(
+          local.onDragOver,
+          composeEventHandlers(localProps.onDragOver, onDragOverCb)
+        )
       ),
       onDragLeave: composeDragHandler(
-        composeEventHandlers(localProps.onDragLeave, onDragLeaveCb)
+        composeEventHandlers(
+          local.onDragLeave,
+          composeEventHandlers(localProps.onDragLeave, onDragLeaveCb)
+        )
       ),
       onDrop: composeDragHandler(
-        composeEventHandlers(localProps.onDrop, onDropCb)
+        composeEventHandlers(
+          (local.onDrop as unknown as GenericEventHandler),
+          composeEventHandlers(localProps.onDrop, onDropCb)
+        )
       ),
       role: localProps.role ? localProps.role : "presentation",
       [refKey]: (el: HTMLElement) => { rootRef = el; },

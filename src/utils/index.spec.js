@@ -1,3 +1,5 @@
+import { describe, beforeEach, afterEach, vi } from 'vitest';
+
 describe("utils", () => {
   /**
    * @constant
@@ -12,7 +14,7 @@ describe("utils", () => {
   });
 
   afterEach(() => {
-    jest.resetModules();
+    vi.resetModules();
   });
 
   describe("fileAccepted()", () => {
